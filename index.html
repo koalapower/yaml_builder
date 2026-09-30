@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSMP and KUMA YAML Builder</title>
+<style>
+:root{
+  color-scheme:light;
+  --canvas:#ffffff; --panel:#f5f6f7; --popover:#ffffff;
+  --hairline:#e8eaed; --hairline-strong:#17191b; --border-control:#d5d8dc;
+  --text:#17191b; --text-secondary:#6b7177; --text-muted:#9aa0a6;
+  --accent:#3d6deb; --accent-hover:#315fd6; --on-accent:#ffffff;
+  --nav-active-bg:#eceefc; --nav-active-fg:#3f51d1;
+  --good-bg:#e4f2d9; --good-fg:#2e7d32;
+  --bad-bg:#fbe4e4; --bad-fg:#c62828;
+  --tag-bg:#e9ebed; --tag-fg:#55595e;
+  --radius-control:8px; --radius-card:12px; --radius-tag:4px;
+  --yaml-key:#3f51d1; --yaml-str:#2e7d32; --yaml-num:#b26a00; --yaml-ph:#c62828;
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --canvas:#17191b; --panel:#232628; --popover:#26292c;
+  --hairline:#33373a; --hairline-strong:#e6e8ea; --border-control:#45494e;
+  --text:#e6e8ea; --text-secondary:#9aa0a6; --text-muted:#6b7177;
+  --accent:#3d6deb; --accent-hover:#5580f0;
+  --nav-active-bg:#23283f; --nav-active-fg:#98a6f5;
+  --good-bg:#4d7c45; --good-fg:#d9f0cf;
+  --bad-bg:#8f3d3d; --bad-fg:#f6d9d9;
+  --tag-bg:#34383b; --tag-fg:#b8bdc2;
+  --yaml-key:#98a6f5; --yaml-str:#a9d78f; --yaml-num:#f0c987; --yaml-ph:#f0a0a0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:"Kaspersky Sans",Inter,"Golos Text",system-ui,-apple-system,sans-serif;
+  background:var(--canvas); color:var(--text); font-variant-numeric:tabular-nums; font-size:14px; line-height:1.45}
+h1,h2,h3{font-weight:700;margin:0}
+.wrap{max-width:1600px;margin:0 auto;padding:22px 26px 60px}
+.top{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.hex{width:34px;height:38px;flex:0 0 auto}
+.top h1{font-size:21px;letter-spacing:.2px}
+.top .sub{color:var(--text-secondary);font-size:12.5px}
+.spacer{flex:1}
+.btn{border:1px solid var(--border-control);background:var(--canvas);color:var(--text);font:inherit;font-size:13px;
+  height:36px;padding:0 14px;border-radius:var(--radius-control);cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn:hover{background:var(--panel)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-hover)}
+.icon-btn{height:36px;min-width:36px;padding:0 10px;border:1px solid var(--border-control);background:var(--canvas);
+  border-radius:var(--radius-control);cursor:pointer;color:var(--text);font-size:14px;line-height:1;font-weight:600}
+.icon-btn:hover{background:var(--panel)}
+.cfg{display:flex;flex-wrap:wrap;gap:26px;align-items:center;padding:15px 20px;background:var(--panel);border-radius:var(--radius-card);margin-bottom:18px}
+.cfg .grp{display:flex;align-items:center;gap:12px}
+.cfg .grp > span.k{font-size:13px;color:var(--text-secondary);min-width:118px}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--border-control);border-radius:var(--radius-control);padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:13px;padding:6px 14px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--accent);color:#fff;font-weight:500}
+.panes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:20px;align-items:start}
+@media(max-width:1050px){.panes{grid-template-columns:1fr}}
+.pane{border:1px solid var(--hairline);border-radius:var(--radius-card);background:var(--canvas)}
+.pane > header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--hairline)}
+.pane > header .h{font-size:14px;font-weight:600}
+.pane > header .muted{color:var(--text-muted);font-size:12px}
+.chipwrap{position:relative;margin-left:auto;display:inline-flex}
+.chip{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:var(--radius-tag);cursor:default;user-select:none}
+.chip.ok{background:var(--good-bg);color:var(--good-fg)}
+.chip.err{background:var(--bad-bg);color:var(--bad-fg)}
+.chipwrap.has .chip{cursor:pointer}
+.chippop{position:absolute;top:calc(100% + 8px);right:0;width:340px;max-width:min(340px,82vw);max-height:min(360px,60vh);overflow:auto;
+  background:var(--popover);border:1px solid var(--hairline);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.2);padding:8px;display:none;z-index:80}
+.chipwrap.has:hover .chippop,.chippop.show{display:block}
+.chippop .ttl{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);padding:5px 8px 7px}
+.chippop ul{list-style:none;margin:0;padding:0}
+.chippop li{padding:7px 9px;border-radius:7px;font-size:12.5px;display:flex;flex-direction:column;gap:2px}
+.chippop li:hover{background:var(--panel)}
+.chippop li .w{color:var(--text-secondary);font-weight:600;font-size:11.5px}
+.chippop li .m{color:var(--bad-fg)}
+.formbody{padding:4px 4px 14px;max-height:calc(100vh - 220px);overflow:auto}
+.card{margin:12px 12px 0;border:1px solid var(--hairline);border-radius:var(--radius-card)}
+.card.dis{opacity:.5}
+.card.dis .body{pointer-events:none}
+.card > .head{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:var(--panel);border-radius:var(--radius-card) var(--radius-card) 0 0}
+.card.closed > .head{border-radius:var(--radius-card)}
+.card > .head .t{font-weight:600;font-size:14px}
+.card > .head .file{font-size:12px;color:var(--text-muted);font-family:ui-monospace,Menlo,Consolas,monospace}
+.card > .head .chev{margin-left:auto;color:var(--text-muted);transition:transform .15s}
+.card.closed > .head .chev{transform:rotate(-90deg)}
+.card.closed > .body{display:none}
+.card > .body{padding:14px}
+.subhdr{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin:4px 0 12px;display:flex;align-items:center;gap:8px}
+.subhdr:not(:first-child){margin-top:22px}
+.subhdr .line{flex:1;height:1px;background:var(--hairline)}
+.field{margin-bottom:13px}
+.field > label{display:flex;align-items:center;font-size:13px;color:var(--text-secondary);margin-bottom:5px}
+.field > label .req{color:var(--bad-fg);margin-left:3px;font-weight:700}
+.field input,.field select{width:100%;height:38px;padding:0 11px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--canvas);color:var(--text);font:inherit;font-size:14px}
+.field input::placeholder{color:var(--text-muted);opacity:1}
+.field input:focus,.field select:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.field input:disabled{background:var(--panel);color:var(--text-muted)}
+.field.bad input{border-color:var(--bad-fg)}
+.field .err{font-size:11.5px;color:var(--bad-fg);margin-top:4px;display:none}
+.field.bad .err{display:block}
+.field .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.two{grid-template-columns:1fr}}
+.inline-check{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);margin:-4px 0 10px;cursor:pointer;user-select:none}
+.inline-check input{width:15px;height:15px;accent-color:var(--accent)}
+.toggle-field .seg{margin-top:2px}
+.info{display:inline-flex;width:15px;height:15px;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:50%;font-size:10px;font-weight:700;align-items:center;justify-content:center;cursor:help;position:relative;margin-left:6px;flex:0 0 auto}
+.info:hover,.info:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+.info:hover::after,.info:focus-visible::after{content:attr(data-tip);position:absolute;left:0;bottom:calc(100% + 8px);width:270px;max-width:70vw;background:var(--popover);color:var(--text);border:1px solid var(--hairline);border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.45;font-weight:400;text-align:left;white-space:normal;box-shadow:0 8px 26px rgba(0,0,0,.16);z-index:60}
+.dsn{margin:2px 0 6px;padding:9px 11px;border-radius:var(--radius-control);background:var(--panel);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all;color:var(--text-secondary)}
+.dsn .ph{color:var(--yaml-ph);font-weight:600}
+.rules{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px}
+.rules li{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:7px}
+.rules li::before{content:"○";color:var(--text-muted);font-size:11px}
+.rules li.ok{color:var(--good-fg)} .rules li.ok::before{content:"✓";color:var(--good-fg)}
+.rules li.no{color:var(--bad-fg)} .rules li.no::before{content:"✕";color:var(--bad-fg)}
+.row{border:1px solid var(--hairline);border-radius:var(--radius-control);padding:12px;margin-bottom:10px;background:var(--panel)}
+.row .rh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.row .role{font-size:11px;font-weight:600;padding:3px 9px;border-radius:var(--radius-tag);background:var(--nav-active-bg);color:var(--nav-active-fg)}
+.row .role.w{background:var(--tag-bg);color:var(--tag-fg)}
+.row .del{margin-left:auto;border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px;border-radius:6px}
+.row .del:hover{background:var(--bad-bg);color:var(--bad-fg)}
+.row .del:disabled{opacity:.35;cursor:not-allowed}
+.addrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
+.addbtn{border:1px dashed var(--border-control);background:transparent;color:var(--accent);font:inherit;font-size:13px;padding:9px 12px;border-radius:var(--radius-control);cursor:pointer;flex:1;min-width:150px}
+.addbtn:hover{background:var(--panel)}
+.tabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--hairline)}
+.tabs button{border:0;background:transparent;font:inherit;font-size:13px;color:var(--text-secondary);padding:8px 14px;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px}
+.tabs button.on{color:var(--text);font-weight:600;border-bottom-color:var(--hairline-strong)}
+.tabs button:disabled{opacity:.4;cursor:not-allowed}
+.tabs .fname{margin-left:auto;align-self:center;font-size:11px;color:var(--text-muted);font-family:ui-monospace,Menlo,Consolas,monospace}
+.yaml{margin:0;padding:16px 18px;background:var(--panel);min-height:440px;max-height:calc(100vh - 300px);overflow:auto;font-family:ui-monospace,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px;line-height:1.62;white-space:pre;tab-size:2}
+.yaml .k{color:var(--yaml-key)} .yaml .s{color:var(--yaml-str)} .yaml .n{color:var(--yaml-num)} .yaml .b{color:var(--yaml-num)}
+.yaml .ph{color:var(--yaml-ph);background:color-mix(in srgb,var(--yaml-ph) 13%,transparent);border-radius:3px;padding:0 3px;font-weight:600}
+.outfoot{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--hairline);flex-wrap:wrap}
+.outfoot .msg{font-size:12px;color:var(--text-muted);align-self:center}
+.note{margin:12px;padding:10px 12px;border-radius:var(--radius-control);font-size:12.5px;background:var(--nav-active-bg);color:var(--nav-active-fg)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+.modal.show{display:flex}
+.modal .box{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-card);width:700px;max-width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.modal .mh{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--hairline)}
+.modal .mh .t{font-weight:700;font-size:15px}
+.modal .mh .x{margin-left:auto;border:0;background:transparent;color:var(--text-muted);font-size:17px;cursor:pointer;border-radius:6px;padding:2px 9px;line-height:1}
+.modal .mh .x:hover{background:var(--panel)}
+.modal .mb{padding:16px 18px;overflow:auto}
+.modal .mb .hint{color:var(--text-secondary);font-size:12.5px;margin:0 0 12px}
+.modal .empty{color:var(--text-secondary);font-size:13px;line-height:1.5}
+.modal .zone{margin:0;font-family:ui-monospace,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px;line-height:1.75;white-space:pre;background:var(--panel);border-radius:8px;padding:14px 16px;color:var(--text);overflow:auto}
+.modal .zone .nm{color:var(--yaml-key)} .modal .zone .ty{color:var(--text-muted)} .modal .zone .ip{color:var(--yaml-str)}
+.modal .mf{display:flex;gap:10px;padding:12px 18px;border-top:1px solid var(--hairline);flex-wrap:wrap}
+.footer{margin-top:26px;color:var(--text-muted);font-size:12px;text-align:center}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--canvas);padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:100}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <svg class="hex" viewBox="0 0 34 38"><path d="M17 1 32 9.5v19L17 37 2 28.5v-19z" fill="none" stroke="#00A88E" stroke-width="2.4"/><path d="M17 9 25 13.5v9L17 27 9 22.5v-9z" fill="none" stroke="#3DE8CA" stroke-width="1.6"/></svg>
+    <div>
+      <h1 data-i18n="app_title">Конструктор YAML установки</h1>
+      <div class="sub" data-i18n-html="app_sub"></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="dlSource" data-i18n="btn_source" data-i18n-title="src_title">↓ Скачать исходник</button>
+    <button class="icon-btn" id="lang" title="Language">EN</button>
+    <button class="icon-btn" id="theme" title="Theme">☾</button>
+  </div>
+
+  <div class="cfg">
+    <div class="grp">
+      <span class="k" data-i18n="cfg_smp">Топология SMP</span>
+      <div class="seg" id="smpSeg">
+        <button data-smp="single" class="on">Single-node</button>
+        <button data-smp="multi">Multi-node</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="k" data-i18n="cfg_kuma">Инвентарь KUMA</span>
+      <div class="seg" id="kumaSeg">
+        <button data-kuma="none" class="on" data-i18n="seg_kuma_none">Нет (/dev/null)</button>
+        <button data-kuma="aio">All-in-one</button>
+        <button data-kuma="dist">Distributed</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panes">
+    <div class="pane">
+      <header><span class="h" data-i18n="pane_params">Параметры</span><span class="muted" id="formSummary"></span><span class="chipwrap" id="chipWrap"><span class="chip ok" id="formChip"></span><div class="chippop" id="chipPop"></div></span></header>
+      <div class="formbody" id="formbody">
+
+        <div class="card" id="cardSmp">
+          <div class="head" data-toggle="cardSmp"><span class="t">SMP</span><span class="file">param.yaml</span><span class="chev">▾</span></div>
+          <div class="body">
+
+            <div class="subhdr"><span data-i18n="card_nodes">Узлы кластера</span><span class="line"></span></div>
+
+            <div id="nodesSingle">
+              <div class="row">
+                <div class="rh"><span class="role">primary-worker</span></div>
+                <div class="two">
+                  <div class="field" id="f_s_desc"><label><span data-i18n="lbl_desc"></span><i-tip data-tipk="tip_desc"></i-tip><span class="req">*</span></label><input id="s_desc" value="cdt-1"><div class="err"></div></div>
+                  <div class="field" id="f_s_host"><label><span data-i18n="lbl_host"></span><i-tip data-tipk="tip_host_single"></i-tip><span class="req">*</span></label><input id="s_host" placeholder="10.0.0.100"><div class="err"></div></div>
+                </div>
+                <div class="two">
+                  <div class="field" id="f_s_user"><label><span data-i18n="lbl_user"></span><i-tip data-tipk="tip_user"></i-tip><span class="req">*</span></label><input id="s_user" value="user"><div class="err"></div></div>
+                  <div class="field" id="f_s_key"><label><span data-i18n="lbl_key"></span><i-tip data-tipk="tip_key"></i-tip><span class="req">*</span></label><input id="s_key" value="/home/user/.ssh/id_rsa"><div class="err"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="nodesMulti" style="display:none">
+              <div id="multiList"></div>
+              <div class="addrow">
+                <button class="addbtn" data-add="primary" data-i18n="add_primary">+ Добавить primary-узел</button>
+                <button class="addbtn" data-add="worker" data-i18n="add_worker">+ Добавить worker-узел</button>
+              </div>
+            </div>
+
+            <div id="diskSection" style="display:none">
+              <div class="subhdr"><span data-i18n="sec_disk">Дисковое пространство</span><span class="line"></span></div>
+              <div class="two">
+                <div class="field" id="f_core"><label><span data-i18n="lbl_core"></span><i-tip data-tipk="tip_core"></i-tip><span class="req">*</span></label><input id="coreDisk" value="100" inputmode="numeric"><div class="err"></div></div>
+                <div class="field" id="f_metrics"><label><span data-i18n="lbl_metrics"></span><i-tip data-tipk="tip_metrics"></i-tip><span class="req">*</span></label><input id="metricsDisk" value="80" inputmode="numeric"><div class="err"></div></div>
+              </div>
+            </div>
+
+            <div class="subhdr"><span data-i18n="sec_psql">Подключение к СУБД (psql_dsn)</span><span class="line"></span></div>
+            <div class="two">
+              <div class="field" id="f_pgu"><label><span data-i18n="lbl_pguser"></span><i-tip data-tipk="tip_pguser"></i-tip><span class="req">*</span></label><input id="pgUser" placeholder="postgres"><div class="err"></div></div>
+              <div class="field" id="f_pgp"><label><span data-i18n="lbl_pgpass"></span><i-tip data-tipk="tip_pgpass"></i-tip><span class="req">*</span></label><input id="pgPass" data-i18n-ph="iph_pgpass"><div class="err"></div></div>
+            </div>
+            <div class="two">
+              <div class="field" id="f_pgh"><label><span data-i18n="lbl_pghost"></span><i-tip data-tipk="tip_pghost"></i-tip><span class="req">*</span></label><input id="pgHost"><div class="err"></div></div>
+              <div class="field" id="f_pgport"><label><span data-i18n="lbl_pgport"></span><i-tip data-tipk="tip_pgport"></i-tip><span class="req">*</span></label><input id="pgPort" value="5432" inputmode="numeric"><div class="err"></div></div>
+            </div>
+            <label class="inline-check"><input type="checkbox" id="pgMirror" checked><span data-i18n="chk_pgmirror"></span></label>
+            <div class="dsn" id="dsnPreview"></div>
+
+            <div class="subhdr"><span data-i18n="sec_deploy">Параметры развёртывания</span><span class="line"></span></div>
+
+            <div class="field toggle-field" id="f_autodeploy">
+              <label><span data-i18n="lbl_autodeploy"></span><i-tip data-tipk="tip_autodeploy"></i-tip></label>
+              <div class="seg" id="autodeploySeg">
+                <button data-ad="yes" class="on" data-i18n="ad_yes">Да (EDR)</button>
+                <button data-ad="no" data-i18n="ad_no">Нет</button>
+              </div>
+            </div>
+
+            <div class="field" id="f_ingress"><label><span data-i18n="lbl_ingress"></span><i-tip data-tipk="tip_ingress"></i-tip><span class="req">*</span></label><input id="ingress" placeholder="10.0.0.101"><div class="err"></div></div>
+            <div class="field" id="f_admin"><label><span data-i18n="lbl_admin"></span><i-tip data-tipk="tip_admin"></i-tip><span class="req">*</span></label><input id="adminPass" data-i18n-ph="iph_admin"><div class="err"></div>
+              <ul class="rules" id="adminRules"></ul>
+            </div>
+            <div class="field" id="f_domain"><label><span data-i18n="lbl_domain"></span><i-tip data-tipk="tip_domain"></i-tip><span class="req">*</span></label><input id="smpDomain" placeholder="smp.local"><div class="err"></div></div>
+            <div class="field" id="f_inventory"><label><span data-i18n="lbl_inventory"></span><i-tip data-tipk="tip_inventory"></i-tip><span class="req" id="invReq" style="display:none">*</span></label><input id="inventory" disabled value="/dev/null"><div class="err"></div></div>
+            <div class="field" id="f_license"><label><span data-i18n="lbl_license"></span><i-tip data-tipk="tip_license"></i-tip><span class="req">*</span></label><input id="license" value="/home/user/XDR/license.key"><div class="err"></div></div>
+
+            <div class="subhdr"><span data-i18n="sec_grafana">Доступ к метрикам (Grafana)</span><span class="line"></span></div>
+            <div class="field" id="f_gu"><label><span data-i18n="lbl_gu"></span><i-tip data-tipk="tip_gu"></i-tip><span class="req">*</span></label><input id="grafUser" value="admin"><div class="err"></div></div>
+            <div class="field" id="f_gp"><label><span data-i18n="lbl_gp"></span><i-tip data-tipk="tip_gp"></i-tip><span class="req">*</span></label><input id="grafPass" data-i18n-ph="iph_gp"><div class="err"></div>
+              <ul class="rules" id="grafRules"></ul>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="card dis closed" id="cardKuma">
+          <div class="head" data-toggle="cardKuma"><span class="t">KUMA</span><span class="file">inventory.yml</span><span class="chev">▾</span></div>
+          <div class="body">
+
+            <div id="kumaAio">
+              <div class="subhdr"><span data-i18n="sec_aio">All-in-one — один хост на все роли</span><span class="line"></span></div>
+              <div class="two">
+                <div class="field" id="f_aio_fqdn"><label><span data-i18n="lbl_fqdn"></span><i-tip data-tipk="tip_fqdn_aio"></i-tip><span class="req">*</span></label><input id="aioFqdn" placeholder="kuma.example.com"><div class="err"></div></div>
+                <div class="field" id="f_aio_ip"><label><span data-i18n="lbl_ip"></span><i-tip data-tipk="tip_ip_aio"></i-tip></label><input id="aioIp" placeholder="0.0.0.0"><div class="err"></div></div>
+              </div>
+            </div>
+
+            <div id="kumaDist" style="display:none">
+              <div class="subhdr"><span>kuma_utils</span><span class="line"></span></div>
+              <div class="two">
+                <div class="field" id="f_u_fqdn"><label><span data-i18n="lbl_fqdn"></span><i-tip data-tipk="tip_fqdn_utils"></i-tip><span class="req">*</span></label><input id="utilsFqdn" placeholder="kuma-utils.example.com"><div class="err"></div></div>
+                <div class="field" id="f_u_ip"><label><span data-i18n="lbl_ip_kuma"></span><i-tip data-tipk="tip_ip_kuma"></i-tip></label><input id="utilsIp" placeholder="0.0.0.0"><div class="err"></div></div>
+              </div>
+
+              <div class="subhdr"><span>kuma_collector</span><span class="line"></span></div>
+              <div id="collectorList"></div>
+              <div class="addrow"><button class="addbtn" data-addk="collector" data-i18n="add_collector">+ Добавить коллектор</button></div>
+
+              <div class="subhdr"><span>kuma_correlator</span><span class="line"></span></div>
+              <div id="correlatorList"></div>
+              <div class="addrow"><button class="addbtn" data-addk="correlator" data-i18n="add_correlator">+ Добавить коррелятор</button></div>
+
+              <div class="subhdr"><span>kuma_storage</span><span class="line"></span></div>
+              <div id="storageList"></div>
+              <div class="addrow"><button class="addbtn" data-addk="storage" data-i18n="add_storage">+ Добавить хранилище</button></div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="note" data-i18n-html="note_html"></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="tabs" id="outTabs">
+        <button data-tab="param" class="on">param.yaml</button>
+        <button data-tab="inv" id="tabInv" disabled>inventory.yml</button>
+        <span class="fname" id="dlName"></span>
+      </div>
+      <pre class="yaml" id="yamlOut"></pre>
+      <div class="outfoot">
+        <button class="btn" id="btnCopy" data-i18n="btn_copy">⧉ Копировать</button>
+        <button class="btn primary" id="btnDl" data-i18n="btn_dl">↓ Скачать файл</button>
+        <button class="btn" id="btnDlBoth" data-i18n="btn_dlboth" style="display:none">↓↓ Скачать оба</button>
+        <button class="btn" id="btnDns" data-i18n="btn_dns">DNS-записи</button>
+        <span class="msg" id="outMsg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer" data-i18n-html="footer_html"></div>
+</div>
+<div class="modal" id="dnsModal">
+  <div class="box">
+    <div class="mh"><span class="t" data-i18n="dns_title">Необходимые DNS-записи</span><button class="x" id="dnsClose" title="Close">✕</button></div>
+    <div class="mb">
+      <p class="hint" data-i18n="dns_hint"></p>
+      <div class="empty" id="dnsEmpty" data-i18n="dns_empty"></div>
+      <pre class="zone" id="dnsPreview"></pre>
+    </div>
+    <div class="mf">
+      <button class="btn primary" id="dnsDownload" data-i18n="dns_dl">Скачать конфигурацию для Bind</button>
+      <button class="btn" id="dnsCloseBtn" data-i18n="dns_close">Закрыть</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const PRISTINE_SOURCE = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+
+/* ============================ i18n ============================ */
+let LANG = 'ru';
+const T = {
+ru:{
+  app_title:"Конструктор YAML установки",
+  app_sub:'OSMP <span class="mono">param.yaml</span> + инвентарь KUMA <span class="mono">inventory.yml</span> — всё считается локально в браузере',
+  btn_source:"↓ Скачать исходник", src_title:"Скачать автономную копию этой страницы",
+  cfg_smp:"Топология SMP", cfg_kuma:"Инвентарь KUMA", seg_kuma_none:"Нет (/dev/null)",
+  pane_params:"Параметры", ready:"готово",
+  card_nodes:"Узлы кластера", add_primary:"+ Добавить primary-узел", add_worker:"+ Добавить worker-узел",
+  sec_disk:"Дисковое пространство", sec_psql:"Подключение к СУБД (psql_dsn)", sec_deploy:"Параметры развёртывания", sec_grafana:"Доступ к метрикам (Grafana)",
+  sec_aio:"All-in-one — один хост на все роли",
+  add_collector:"+ Добавить коллектор", add_correlator:"+ Добавить коррелятор", add_storage:"+ Добавить хранилище",
+  role_collector:"коллектор", role_correlator:"коррелятор", role_storage:"хранилище",
+  del_node:"Удалить узел", del_host:"Удалить",
+  lbl_desc:"Имя узла", lbl_host:"IP-адрес узла", lbl_user:"Пользователь SSH", lbl_key:"Путь к SSH-ключу",
+  lbl_core:"Диск под Ядро KUMA, ГБ", lbl_metrics:"Диск под метрики, ГБ",
+  lbl_pguser:"Пользователь СУБД", lbl_pgpass:"Пароль СУБД", lbl_pghost:"Адрес СУБД", lbl_pgport:"Порт СУБД",
+  chk_pgmirror:"Адрес СУБД совпадает с host узла",
+  lbl_autodeploy:"Разворачивать сервисы KUMA в кластере", ad_yes:"Да (EDR)", ad_no:"Нет",
+  lbl_ingress:"IP шлюза кластера", lbl_admin:"Пароль администратора XDR", lbl_domain:"Домен OSMP",
+  lbl_inventory:"Путь к файлу инвентаря KUMA", lbl_license:"Путь к лицензии KUMA",
+  lbl_gu:"Пользователь Grafana", lbl_gp:"Пароль Grafana",
+  lbl_fqdn:"FQDN узла", lbl_ip:"IP-адрес (ansible_host)", lbl_ip_kuma:"IP (ansible_host)",
+  tip_desc:"desc — Имя узла. 1–63 символа: A–Z, a–z, 0–9, дефис. Имена всех узлов кластера должны быть уникальны.",
+  tip_host_single:"host — IPv4-адрес узла. Должен быть в той же подсети, что и шлюз кластера Kubernetes, и не совпадать с ingress_ip.",
+  tip_host_multi:"host — IPv4-адрес узла. Уникален и не совпадает с ingress_ip.",
+  tip_user:"user — Учётная запись для подключения KDT к узлу. 1–31 символа: a–z, 0–9, _ , дефис.",
+  tip_key:"key — Путь к закрытому SSH-ключу на узле администратора. Тем же значением заполняется параметр ssh_pk.",
+  tip_pguser:"Часть psql_dsn — имя привилегированной учётной записи СУБД (dbms_username).",
+  tip_pgpass:"Часть psql_dsn — пароль учётной записи СУБД. Спец. символы будут закодированы percent-encoding (! → %21 и т.п.).",
+  tip_pghost:"Часть psql_dsn — FQDN или IP сервера СУБД. По умолчанию совпадает с host узла.",
+  tip_pgport:"Часть psql_dsn — порт подключения к СУБД. По умолчанию 5432.",
+  tip_autodeploy:"autodeploy_plan — разворачивать ли сервисы KUMA для Kaspersky EDR внутри кластера. «Да (EDR)» — значение по умолчанию, параметр не добавляется в файл. «Нет» — добавляется autodeploy_plan со значением none, сервисы EDR не разворачиваются.",
+  tip_ingress:"ingress_ip — статический IPv4-адрес шлюза кластера Kubernetes. В той же подсети, что и узлы; не должен совпадать с IP узлов кластера.",
+  tip_admin:"admin_password — пароль главного администратора (учётная запись admin). Значение со спец. символами в YAML экранируется одинарными кавычками автоматически.",
+  tip_domain:"smp_domain — доменное имя, часть FQDN публичных служб. Например, при console_host=console и smp_domain=smp.local Консоль доступна по console.smp.local.",
+  tip_inventory:"inventory — путь к файлу inventory.yml на узле администратора. Если KUMA не разворачивается вне кластера — значение /dev/null.",
+  tip_license:"license — путь к лицензионному ключу KUMA на узле администратора. Указывается при любой конфигурации, в том числе без KUMA.",
+  tip_gu:"grafana_admin_user — учётная запись для просмотра метрик OSMP. 1–30 символов, начинается с буквы: a–z, 0–9, _ - .",
+  tip_gp:"grafana_admin_password — пароль учётной записи Grafana. Те же правила сложности, что и у пароля администратора.",
+  tip_core:"core_disk_request — объём диска для Ядра KUMA. По умолчанию 100 ГБ. Укажите только число, «Gi» добавится автоматически.",
+  tip_metrics:"metrics_disk_request — объём диска под метрики. По умолчанию 80 ГБ. Укажите только число, «Gi» добавится автоматически.",
+  tip_fqdn_aio:"Имя хоста в файле инвентаря. Должно быть FQDN — содержать хотя бы одну точку. Один хост используется для kuma_utils, collector, correlator и storage.",
+  tip_ip_aio:"ansible_host — IP-адрес узла KUMA. Необязателен, по умолчанию 0.0.0.0. Не должен совпадать с ingress_ip.",
+  tip_fqdn_utils:"Имя хоста kuma_utils. Должно содержать хотя бы одну точку.",
+  tip_ip_kuma:"ansible_host — по умолчанию 0.0.0.0. Не должен совпадать с ingress_ip.",
+  tip_fqdn_kuma:"Имя хоста. Должно содержать хотя бы одну точку.",
+  note_html:'Файл <span class="mono">inventory.yml</span> формируется только при выбранной конфигурации KUMA. Когда выбрано «Нет», параметр <span class="mono">inventory</span> в <span class="mono">param.yaml</span> равен <span class="mono">/dev/null</span>.',
+  footer_html:'Инструмент работает полностью в браузере: введённые значения никуда не отправляются. Кнопка «Скачать исходник» сохраняет автономную копию страницы.',
+  btn_copy:"⧉ Копировать", btn_dl:"↓ Скачать файл", btn_dlboth:"↓↓ Скачать оба",
+  dl_as:"скачается как", msg_ready:"файл готов", msg_empty_pre:"в этом файле",
+  toast_copied:"Скопировано в буфер", toast_copied2:"Скопировано", toast_src:"Исходник сохранён", toast_dns:"Конфигурация DNS сохранена",
+  btn_dns:"DNS-записи", dns_title:"Необходимые DNS-записи", dns_dl:"Скачать конфигурацию для Bind", dns_close:"Закрыть",
+  dns_hint:"Все публичные службы OSMP ведут на ingress_ip; узлы KUMA сопоставлены со своими адресами. Тип всех записей — A.",
+  dns_empty:"Заполните домен OSMP и IP шлюза кластера (и при необходимости IP-адреса узлов KUMA), чтобы сформировать DNS-записи.",
+  bind_c1:"; DNS-записи для Kaspersky Next XDR Expert (OSMP)", bind_c2:"; Сформировано локально в браузере. Добавьте записи в соответствующие зоны BIND.", bind_c3:"; TTL, SOA и NS настройте под своё окружение.",
+  iph_pgpass:"пароль", iph_admin:"пароль учётной записи admin", iph_gp:"пароль для просмотра метрик",
+  v_required:"Обязательное поле", v_ipv4:"Неверный IPv4-адрес", v_desc:"1–63 симв.: A–Z, a–z, 0–9, дефис",
+  v_user:"1–31 симв.: a–z, 0–9, _ , дефис", v_dupdesc:"Имя узла повторяется", v_duphost:"Адрес узла повторяется",
+  v_ingress:"Совпадает с ingress_ip", v_ing_node:"Совпадает с IP узла «{n}»", v_ing_kuma:"Совпадает с адресом узла KUMA «{n}»", errpop_title:"Что нужно исправить",
+  v_int:"Только целое число (ГБ)", v_ipfqdn:"IPv4 или FQDN", v_port:"Порт 1–65535",
+  v_pwd:"Пароль не отвечает требованиям (см. ниже)", v_path:"Путь без пробелов",
+  v_gu:"1–30 симв., с буквы: a–z, 0–9, _ - .", v_fqdn:"FQDN должен содержать точку",
+  r_len:"Длина 10–256 символов", r_groups:"Минимум 3 из 4 групп символов (сейчас {n})", r_nospace:"Без пробелов", r_dotat:'Не содержит сочетания ".@"',
+  ph_desc:"укажите desc", ph_host:"укажите IP host", ph_user:"укажите user", ph_key:"укажите путь к ключу",
+  ph_ingress:"укажите ingress_ip", ph_admin:"укажите admin_password", ph_amount:"укажите объём",
+  ph_inventory:"укажите путь к inventory.yml", ph_license:"укажите путь к лицензии", ph_domain:"укажите smp_domain",
+  ph_gu:"укажите grafana_admin_user", ph_gp:"укажите grafana_admin_password", ph_fqdn:"укажите FQDN", ph_badip:"неверный IP",
+  err1:"ошибка", err2:"ошибки", err5:"ошибок", emp1:"незаполненное поле", emp2:"незаполненных поля", emp5:"незаполненных полей",
+},
+en:{
+  app_title:"YAML installation builder",
+  app_sub:'OSMP <span class="mono">param.yaml</span> + KUMA inventory <span class="mono">inventory.yml</span> — everything is computed locally in your browser',
+  btn_source:"↓ Download source", src_title:"Download an offline copy of this page",
+  cfg_smp:"SMP topology", cfg_kuma:"KUMA inventory", seg_kuma_none:"None (/dev/null)",
+  pane_params:"Parameters", ready:"ready",
+  card_nodes:"Cluster nodes", add_primary:"+ Add primary node", add_worker:"+ Add worker node",
+  sec_disk:"Disk space", sec_psql:"DBMS connection (psql_dsn)", sec_deploy:"Deployment parameters", sec_grafana:"Metrics access (Grafana)",
+  sec_aio:"All-in-one — one host for all roles",
+  add_collector:"+ Add collector", add_correlator:"+ Add correlator", add_storage:"+ Add storage",
+  role_collector:"collector", role_correlator:"correlator", role_storage:"storage",
+  del_node:"Delete node", del_host:"Delete",
+  lbl_desc:"Node name", lbl_host:"Node IP address", lbl_user:"SSH user", lbl_key:"SSH key path",
+  lbl_core:"KUMA Core disk, GB", lbl_metrics:"Metrics disk, GB",
+  lbl_pguser:"DBMS user", lbl_pgpass:"DBMS password", lbl_pghost:"DBMS address", lbl_pgport:"DBMS port",
+  chk_pgmirror:"DBMS address matches the node host",
+  lbl_autodeploy:"Deploy KUMA services in the cluster", ad_yes:"Yes (EDR)", ad_no:"No",
+  lbl_ingress:"Cluster gateway IP", lbl_admin:"XDR administrator password", lbl_domain:"OSMP domain",
+  lbl_inventory:"KUMA inventory file path", lbl_license:"KUMA license path",
+  lbl_gu:"Grafana user", lbl_gp:"Grafana password",
+  lbl_fqdn:"Node FQDN", lbl_ip:"IP address (ansible_host)", lbl_ip_kuma:"IP (ansible_host)",
+  tip_desc:"desc — Node name. 1–63 chars: A–Z, a–z, 0–9, hyphen. All cluster node names must be unique.",
+  tip_host_single:"host — Node IPv4 address. Must be in the same subnet as the Kubernetes cluster gateway and must not match ingress_ip.",
+  tip_host_multi:"host — Node IPv4 address. Must be unique and must not match ingress_ip.",
+  tip_user:"user — Account used by KDT to connect to the node. 1–31 chars: a–z, 0–9, _ , hyphen.",
+  tip_key:"key — Path to the private SSH key on the administrator host. The ssh_pk parameter is filled with the same value.",
+  tip_pguser:"Part of psql_dsn — the privileged DBMS account user name (dbms_username).",
+  tip_pgpass:"Part of psql_dsn — the DBMS account password. Special characters are percent-encoded (! → %21, etc.).",
+  tip_pghost:"Part of psql_dsn — FQDN or IP of the DBMS server. Defaults to the node host.",
+  tip_pgport:"Part of psql_dsn — DBMS connection port. Default is 5432.",
+  tip_autodeploy:"autodeploy_plan — whether to deploy KUMA services for Kaspersky EDR inside the cluster. «Yes (EDR)» is the default and the parameter is omitted from the file. «No» adds autodeploy_plan with value none, so EDR services are not deployed.",
+  tip_ingress:"ingress_ip — Reserved static IPv4 of the Kubernetes cluster gateway. Same subnet as the nodes; must not match any node IP.",
+  tip_admin:"admin_password — Password of the main administrator (admin account). Values with special characters are automatically escaped with single quotes in YAML.",
+  tip_domain:"smp_domain — Domain name, part of the public services FQDN. E.g. with console_host=console and smp_domain=smp.local the Console is at console.smp.local.",
+  tip_inventory:"inventory — Path to inventory.yml on the administrator host. If KUMA is not deployed outside the cluster, the value is /dev/null.",
+  tip_license:"license — Path to the KUMA license key on the administrator host. Specified in any configuration, including without KUMA.",
+  tip_gu:"grafana_admin_user — Account for viewing OSMP metrics. 1–30 chars, starts with a letter: a–z, 0–9, _ - .",
+  tip_gp:"grafana_admin_password — Grafana account password. Same complexity rules as the administrator password.",
+  tip_core:"core_disk_request — disk space for KUMA Core. Default 100 GB. Enter a number only, «Gi» is appended automatically.",
+  tip_metrics:"metrics_disk_request — disk space for the Metrics service. Default 80 GB. Enter a number only, «Gi» is appended automatically.",
+  tip_fqdn_aio:"Host name in the inventory file. Must be an FQDN — contain at least one dot. One host is used for kuma_utils, collector, correlator and storage.",
+  tip_ip_aio:"ansible_host — KUMA node IP. Optional, defaults to 0.0.0.0. Must not match ingress_ip.",
+  tip_fqdn_utils:"kuma_utils host name. Must contain at least one dot.",
+  tip_ip_kuma:"ansible_host — defaults to 0.0.0.0. Must not match ingress_ip.",
+  tip_fqdn_kuma:"Host name. Must contain at least one dot.",
+  note_html:'The <span class="mono">inventory.yml</span> file is generated only when a KUMA configuration is selected. When «None» is chosen, the <span class="mono">inventory</span> parameter in <span class="mono">param.yaml</span> is <span class="mono">/dev/null</span>.',
+  footer_html:'The tool runs entirely in your browser: entered values are not sent anywhere. The «Download source» button saves an offline copy of the page.',
+  btn_copy:"⧉ Copy", btn_dl:"↓ Download file", btn_dlboth:"↓↓ Download both",
+  dl_as:"will download as", msg_ready:"file is ready", msg_empty_pre:"this file has",
+  toast_copied:"Copied to clipboard", toast_copied2:"Copied", toast_src:"Source saved", toast_dns:"DNS config saved",
+  btn_dns:"DNS records", dns_title:"Required DNS records", dns_dl:"Download BIND config", dns_close:"Close",
+  dns_hint:"All public OSMP services point to ingress_ip; KUMA nodes are mapped to their own addresses. All records are of type A.",
+  dns_empty:"Fill in the OSMP domain and cluster gateway IP (and KUMA node IPs if needed) to generate DNS records.",
+  bind_c1:"; DNS records for Kaspersky Next XDR Expert (OSMP)", bind_c2:"; Generated locally in your browser. Add the records to the corresponding BIND zones.", bind_c3:"; Adjust TTL, SOA and NS for your environment.",
+  iph_pgpass:"password", iph_admin:"admin account password", iph_gp:"password for viewing metrics",
+  v_required:"Required field", v_ipv4:"Invalid IPv4 address", v_desc:"1–63 chars: A–Z, a–z, 0–9, hyphen",
+  v_user:"1–31 chars: a–z, 0–9, _ , hyphen", v_dupdesc:"Node name is duplicated", v_duphost:"Node address is duplicated",
+  v_ingress:"Matches ingress_ip", v_ing_node:"Matches node «{n}» IP", v_ing_kuma:"Matches KUMA node «{n}» address", errpop_title:"What to fix",
+  v_int:"Integer only (GB)", v_ipfqdn:"IPv4 or FQDN", v_port:"Port 1–65535",
+  v_pwd:"Password does not meet the requirements (see below)", v_path:"Path without spaces",
+  v_gu:"1–30 chars, start with a letter: a–z, 0–9, _ - .", v_fqdn:"FQDN must contain a dot",
+  r_len:"Length 10–256 characters", r_groups:"At least 3 of 4 character groups (currently {n})", r_nospace:"No spaces", r_dotat:'No ".@" combination',
+  ph_desc:"specify desc", ph_host:"specify host IP", ph_user:"specify user", ph_key:"specify key path",
+  ph_ingress:"specify ingress_ip", ph_admin:"specify admin_password", ph_amount:"specify amount",
+  ph_inventory:"specify inventory.yml path", ph_license:"specify license path", ph_domain:"specify smp_domain",
+  ph_gu:"specify grafana_admin_user", ph_gp:"specify grafana_admin_password", ph_fqdn:"specify FQDN", ph_badip:"invalid IP",
+  err1:"error", err2:"errors", err5:"errors", emp1:"empty field", emp2:"empty fields", emp5:"empty fields",
+}
+};
+const t = k => (T[LANG][k] !== undefined ? T[LANG][k] : (T.ru[k] !== undefined ? T.ru[k] : k));
+
+/* ============================ pure helpers ============================ */
+const SPECIAL = "@#$%^&*-_!+=[]{}|:',.?/\\`~\"();";
+const isSpecial = ch => SPECIAL.indexOf(ch) >= 0;
+function encUserinfo(s){ return encodeURIComponent(s).replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase()); }
+function yamlSingle(v){ if(v === "") return '""'; return "'" + v.replace(/'/g, "''") + "'"; }
+const reIPv4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+const isIPv4 = s => reIPv4.test(s);
+const isDesc = s => /^[A-Za-z0-9-]{1,63}$/.test(s);
+const isUser = s => /^[a-z0-9_-]{1,31}$/.test(s);
+const isPort = s => /^\d+$/.test(s) && +s >= 1 && +s <= 65535;
+const isPosInt = s => /^\d+$/.test(s) && +s >= 1;
+const isPath = s => s.trim() !== "" && !/\s/.test(s.trim());
+function isFQDN(s){
+  if(!s || s.indexOf(".") < 0) return false;
+  if(!/^[A-Za-z0-9.\-_]+$/.test(s)) return false;
+  if(/^[.\-]/.test(s) || /[.\-]$/.test(s) || s.includes("..")) return false;
+  return true;
+}
+function pwdRules(v){
+  const groups = [/[A-Z]/, /[a-z]/, /[0-9]/].filter(r => r.test(v)).length + ([...v].some(isSpecial) ? 1 : 0);
+  return [
+    { label: t('r_len'), ok: v.length >= 10 && v.length <= 256 },
+    { label: t('r_groups').replace('{n}', groups), ok: groups >= 3 },
+    { label: t('r_nospace'), ok: v.length > 0 && !/\s/.test(v) },
+    { label: t('r_dotat'), ok: v.length > 0 && !v.includes(".@") },
+  ];
+}
+const pwdOk = v => pwdRules(v).every(r => r.ok);
+const grafUserOk = v => v.length>=1 && v.length<=30 && /^[a-z]/.test(v) && /^[a-z0-9_.-]*$/.test(v);
+const PH = txt => "<" + txt + ">";
+const pht = key => PH(t(key));
+
+/* ============================ YAML builders ============================ */
+function buildParam(st){
+  let e = 0; const L = [];
+  L.push('schemaType: ParameterSet','schemaVersion: 1.0.1','namespace: ""','name: bootstrap','project: xdr','nodes:');
+  st.nodes.forEach(n => {
+    const desc = n.desc ? n.desc : (e++, pht('ph_desc'));
+    const host = isIPv4(n.host) ? n.host : (e++, pht('ph_host'));
+    const user = isUser(n.user) ? n.user : (e++, pht('ph_user'));
+    const key  = isPath(n.key)  ? n.key  : (e++, pht('ph_key'));
+    L.push('  - desc: ' + desc, '    type: ' + n.type, '    host: ' + host, '    access:', '      ssh:', '        user: ' + user, '        key: ' + key);
+  });
+  L.push('parameters:');
+  const p = (name, kind, val) => { L.push('  - name: ' + name, '    source:', '      ' + kind + ': ' + val); };
+
+  const pgu = st.pgUser ? encUserinfo(st.pgUser) : (e++, PH("user"));
+  const pgp = st.pgPass ? encUserinfo(st.pgPass) : (e++, PH("password"));
+  const pgh = (isIPv4(st.pgHost) || isFQDN(st.pgHost)) ? st.pgHost : (st.pgHost || (e++, PH("host")));
+  const pgport = isPort(st.pgPort) ? st.pgPort : (e++, PH("port"));
+  p('psql_dsn', 'value', '"postgres://' + pgu + ':' + pgp + '@' + pgh + ':' + pgport + '"');
+
+  p('ingress_ip', 'value', isIPv4(st.ingress) ? st.ingress : (e++, pht('ph_ingress')));
+  const key0 = (st.nodes[0] && isPath(st.nodes[0].key)) ? st.nodes[0].key : pht('ph_key');
+  p('ssh_pk', 'path', key0);
+
+  if(!pwdOk(st.adminPass)) e++;
+  p('admin_password', 'value', st.adminPass ? yamlSingle(st.adminPass) : pht('ph_admin'));
+
+  if(st.mode === 'single'){
+    p('low_resources', 'value', '"true"'); p('default_class_replica_count', 'value', '"1"'); p('openbao_ha_mode', 'value', '"false"');
+  } else {
+    p('core_disk_request', 'value', isPosInt(st.coreDisk) ? st.coreDisk + 'Gi' : (e++, pht('ph_amount')));
+    p('metrics_disk_request', 'value', isPosInt(st.metricsDisk) ? st.metricsDisk + 'Gi' : (e++, pht('ph_amount')));
+  }
+
+  if(st.kuma === 'none') p('inventory', 'value', '"/dev/null"');
+  else p('inventory', 'value', isPath(st.inventory) ? '"' + st.inventory + '"' : (e++, '"' + pht('ph_inventory') + '"'));
+
+  p('license', 'value', isPath(st.license) ? '"' + st.license + '"' : (e++, '"' + pht('ph_license') + '"'));
+  p('smp_domain', 'value', st.smpDomain ? '"' + st.smpDomain + '"' : (e++, '"' + pht('ph_domain') + '"'));
+  p('pki_host_list', 'value', '"admsrv api console kuma monitoring agentserver updater"');
+
+  if(!st.grafUser){ e++; p('grafana_admin_user', 'value', '"' + pht('ph_gu') + '"'); }
+  else { if(!grafUserOk(st.grafUser)) e++; p('grafana_admin_user', 'value', '"' + st.grafUser + '"'); }
+
+  if(!st.grafPass){ e++; p('grafana_admin_password', 'value', pht('ph_gp')); }
+  else { if(!pwdOk(st.grafPass)) e++; p('grafana_admin_password', 'value', yamlSingle(st.grafPass)); }
+
+  if(st.autodeploy === 'no') p('autodeploy_plan', 'value', '"none"');
+  if(st.mode === 'multi') p('route_permissions_dryrun', 'value', '"true"');
+
+  return { text: L.join('\n') + '\n', errors: e };
+}
+
+function buildInventory(st){
+  let e = 0; const L = [];
+  L.push('all:', '  vars:');
+  if(st.kuma === 'dist') L.push('    generate_etc_hosts: false');
+  L.push('    deploy_example_services: false', '    ansible_connection: local', '    ansible_user: nonroot');
+  const pu = (st.nodes.find(n=>n.type!=='worker')||st.nodes[0]||{}).user || '';
+  const userVal = isUser(pu) ? pu : pht('ph_user');
+  L.push('kuma:', '  vars:', '    ansible_connection: ssh', '    ansible_user: ' + userVal);
+  if(pu !== 'root'){ L.push('    ansible_become: true', '    ansible_become_method: sudo'); }
+  L.push('  children:');
+  const hostBlock = h => {
+    const fqdn = isFQDN(h.fqdn) ? h.fqdn : (e++, pht('ph_fqdn'));
+    const ip = h.ip ? (isIPv4(h.ip) ? h.ip : (e++, pht('ph_badip'))) : '0.0.0.0';
+    L.push('        ' + fqdn + ':', '          ansible_host: ' + ip);
+  };
+  const group = (name, hosts) => { L.push('    ' + name + ':', '      hosts:'); hosts.forEach(hostBlock); };
+  if(st.kuma === 'aio'){
+    const h = st.aio; group('kuma_utils', [h]); group('kuma_collector', [h]); group('kuma_correlator', [h]); group('kuma_storage', [h]);
+  } else {
+    group('kuma_utils', [st.utils]); group('kuma_collector', st.collectors); group('kuma_correlator', st.correlators); group('kuma_storage', st.storages);
+  }
+  return { text: L.join('\n') + '\n', errors: e };
+}
+
+/* ============================ highlighter ============================ */
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function hlValue(rest){
+  if(/&lt;.*?&gt;/.test(rest)) return rest.replace(/(&lt;.*?&gt;)/g, '<span class="ph">$1</span>');
+  if(/^\s*"(?:[^"\\]|\\.)*"\s*$/.test(rest)) return rest.replace(/("(?:[^"\\]|\\.)*")/, '<span class="s">$1</span>');
+  if(/^\s*'(?:[^']|'')*'\s*$/.test(rest)) return rest.replace(/('(?:[^']|'')*')/, '<span class="s">$1</span>');
+  const x = rest.trim();
+  if(/^\d+(?:\.\d+){0,3}(?:Gi)?$/.test(x)) return rest.replace(x, '<span class="n">' + x + '</span>');
+  if(/^(?:true|false|local|ssh|nonroot|root|sudo|primary|worker|primary-worker|none|ParameterSet|bootstrap|xdr)$/.test(x)) return rest.replace(x, '<span class="b">' + x + '</span>');
+  return rest;
+}
+function hl(src){
+  return esc(src).split("\n").map(line => {
+    const m = line.match(/^(\s*)(- )?([A-Za-z0-9_.\-]+):(.*)$/);
+    if(m) return m[1] + (m[2]||"") + '<span class="k">' + m[3] + '</span>:' + hlValue(m[4]);
+    return line.replace(/(&lt;.*?&gt;)/g, '<span class="ph">$1</span>');
+  }).join("\n");
+}
+
+/* ============================ DNS records ============================ */
+function dnsRecords(st){
+  const recs=[]; const dom=st.smpDomain, ing=st.ingress;
+  const pki=['admsrv','api','console','kuma','monitoring','agentserver','updater'];
+  if(dom && isIPv4(ing)){
+    pki.forEach(h=> recs.push({zone:dom, name:h, fqdn:h+'.'+dom, ip:ing}));
+    if(st.autodeploy==='yes') recs.push({zone:dom, name:'*.kuma', fqdn:'*.kuma.'+dom, ip:ing});
+  }
+  if(st.kuma!=='none'){
+    const hosts = st.kuma==='aio' ? [st.aio] : [st.utils, ...st.collectors, ...st.correlators, ...st.storages];
+    const seen=new Set();
+    hosts.forEach(h=>{
+      if(h.fqdn && isFQDN(h.fqdn) && h.ip && isIPv4(h.ip)){
+        const k=h.fqdn+'|'+h.ip; if(seen.has(k)) return; seen.add(k);
+        const i=h.fqdn.indexOf('.');
+        recs.push({zone:h.fqdn.slice(i+1), name:h.fqdn.slice(0,i), fqdn:h.fqdn, ip:h.ip});
+      }
+    });
+  }
+  return recs;
+}
+function hlPreview(recs){
+  const w=Math.max(...recs.map(r=>r.fqdn.length))+1;
+  return recs.map(r=>{
+    const pad=' '.repeat(Math.max(2, w-r.fqdn.length+1));
+    return '<span class="nm">'+esc(r.fqdn)+'.</span>'+pad+'<span class="ty">A</span>   <span class="ip">'+r.ip+'</span>';
+  }).join('\n');
+}
+function buildBind(recs){
+  const byZone={}; recs.forEach(r=>{ (byZone[r.zone]=byZone[r.zone]||[]).push(r); });
+  let out=t('bind_c1')+'\n'+t('bind_c2')+'\n'+t('bind_c3')+'\n\n';
+  Object.keys(byZone).forEach(zone=>{
+    out+='$ORIGIN '+zone+'.\n';
+    const w=Math.max(8, ...byZone[zone].map(r=>r.name.length));
+    byZone[zone].forEach(r=>{ out+= r.name.padEnd(w+2)+'IN A    '+r.ip+'\n'; });
+    out+='\n';
+  });
+  return out;
+}
+
+/* ============================ state & DOM ============================ */
+const S = {
+  mode:'single', kuma:'none', tab:'param', autodeploy:'yes',
+  multi:[
+    { type:'primary', desc:'cdt-primary1', host:'', user:'user', key:'/home/user/.ssh/id_rsa' },
+    { type:'worker', desc:'cdt-w1', host:'', user:'user', key:'/home/user/.ssh/id_rsa' },
+    { type:'worker', desc:'cdt-w2', host:'', user:'user', key:'/home/user/.ssh/id_rsa' },
+    { type:'worker', desc:'cdt-w3', host:'', user:'user', key:'/home/user/.ssh/id_rsa' },
+  ],
+  collectors:[{ fqdn:'', ip:'' }], correlators:[{ fqdn:'', ip:'' }], storages:[{ fqdn:'', ip:'' }],
+};
+const $ = id => document.getElementById(id);
+const val = id => ($(id) ? $(id).value.trim() : '');
+const fieldOf = id => { const el=$(id); return el ? el.closest('.field') : null; };
+
+let licenseDirty=false, inventoryDirty=false, keyDirty=false, invUserPath='/home/user/XDR/inventory.yml';
+function keyPath(u){ const home=(u==='root')?'/root':'/home/'+(u||'user'); return home+'/.ssh/id_rsa'; }
+function effUser(){ return (S.mode==='single' ? val('s_user') : ((S.multi.find(n=>n.type!=='worker')||S.multi[0]||{}).user||'')); }
+function pathFor(u,f){ const home=(u==='root')?'/root':'/home/'+(u||'user'); return home+'/XDR/'+f; }
+function syncPaths(){
+  const u = effUser();
+  if(!licenseDirty) $('license').value = pathFor(u,'license.key');
+  if(!inventoryDirty) invUserPath = pathFor(u,'inventory.yml');
+  if(S.mode==='single'){ if(!keyDirty) $('s_key').value = keyPath(val('s_user')); }
+  else { S.multi.forEach((n,i)=>{ if(!n.keyDirty){ n.key = keyPath(n.user); const el=$('m_key_'+i); if(el) el.value=n.key; } }); }
+  if(S.kuma==='none'){ $('inventory').disabled=true; $('inventory').value='/dev/null'; }
+  else { $('inventory').disabled=false; $('inventory').value=invUserPath; }
+}
+
+function readState(){
+  const single = { type:'primary-worker', desc:val('s_desc'), host:val('s_host'), user:val('s_user'), key:val('s_key') };
+  const nodes = S.mode === 'single' ? [single] : S.multi.slice();
+  const primaryHost = (nodes.find(n=>n.type!=='worker') || nodes[0] || {}).host || '';
+  const pgHost = $('pgMirror').checked ? primaryHost : val('pgHost');
+  return {
+    mode:S.mode, kuma:S.kuma, autodeploy:S.autodeploy, nodes,
+    pgUser:val('pgUser'), pgPass:$('pgPass').value, pgHost, pgPort:val('pgPort'),
+    ingress:val('ingress'), adminPass:$('adminPass').value,
+    coreDisk:val('coreDisk'), metricsDisk:val('metricsDisk'),
+    inventory:val('inventory'), license:val('license'), smpDomain:val('smpDomain'),
+    grafUser:val('grafUser'), grafPass:$('grafPass').value,
+    aio:{ fqdn:val('aioFqdn'), ip:val('aioIp') }, utils:{ fqdn:val('utilsFqdn'), ip:val('utilsIp') },
+    collectors:S.collectors, correlators:S.correlators, storages:S.storages,
+  };
+}
+
+/* ---- validation with touched-gating ---- */
+function applyErr(f, msg){
+  if(!f) return;
+  const touched = f.dataset.touched === '1';
+  const box = f.querySelector('.err');
+  if(msg && touched){ f.classList.add('bad'); if(box) box.textContent = msg; }
+  else { f.classList.remove('bad'); if(box) box.textContent = ''; }
+}
+const setErr = (id, msg) => applyErr($(id), msg);
+
+let ERRORS = [];
+function vf(fieldEl, msg, where){ applyErr(fieldEl, msg); if(msg) ERRORS.push({ where, msg }); }
+
+function validateMulti(ingV){
+  const hosts = S.multi.map(n=>n.host), descs = S.multi.map(n=>n.desc);
+  S.multi.forEach((n,i)=>{
+    const tag = n.desc || ('#'+(i+1));
+    let dmsg = n.desc===''?t('v_required'):(!isDesc(n.desc)?t('v_desc'):'');
+    if(!dmsg && descs.filter(x=>x===n.desc).length>1) dmsg=t('v_dupdesc');
+    vf(fieldOf('m_desc_'+i), dmsg, t('lbl_desc')+' · '+tag);
+    let hmsg = n.host===''?t('v_required'):(!isIPv4(n.host)?t('v_ipv4'):'');
+    let conflict=false;
+    if(!hmsg && isIPv4(n.host)){
+      if(ingV && n.host===ingV) conflict=true;                       // listed on the ingress field
+      else if(hosts.filter(h=>h===n.host).length>1) hmsg=t('v_duphost');
+    }
+    if(conflict) applyErr(fieldOf('m_host_'+i), t('v_ingress'));       // highlight only, counted via ingress
+    else vf(fieldOf('m_host_'+i), hmsg, t('lbl_host')+' · '+tag);
+    vf(fieldOf('m_user_'+i), n.user===''?t('v_required'):(!isUser(n.user)?t('v_user'):''), t('lbl_user')+' · '+tag);
+    vf(fieldOf('m_key_'+i), n.key===''?t('v_required'):'', t('lbl_key')+' · '+tag);
+  });
+}
+function validateKumaList(kind, arr, ingV){
+  arr.forEach((h,i)=>{
+    const tag = t('role_'+kind)+' '+(i+1);
+    vf(fieldOf(kind+'_fqdn_'+i), h.fqdn===''?t('v_required'):(!isFQDN(h.fqdn)?t('v_fqdn'):''), t('lbl_fqdn')+' · '+tag);
+    let ib = (h.ip!=='' && !isIPv4(h.ip)) ? t('v_ipv4') : '';
+    if(ib) vf(fieldOf(kind+'_ip_'+i), ib, t('lbl_ip_kuma')+' · '+tag);
+    else if(h.ip!=='' && isIPv4(h.ip) && ingV && h.ip===ingV) applyErr(fieldOf(kind+'_ip_'+i), t('v_ingress'));
+    else applyErr(fieldOf(kind+'_ip_'+i), '');
+  });
+}
+function validateForm(st){
+  ERRORS = [];
+  const ingV = isIPv4(st.ingress) ? st.ingress : null;
+
+  if(S.mode === 'single'){
+    vf($('f_s_desc'), val('s_desc')===''?t('v_required'):(!isDesc(val('s_desc'))?t('v_desc'):''), t('lbl_desc'));
+    let hmsg = val('s_host')===''?t('v_required'):(!isIPv4(val('s_host'))?t('v_ipv4'):'');
+    if(!hmsg && ingV && val('s_host')===ingV) applyErr($('f_s_host'), t('v_ingress'));  // listed on ingress
+    else vf($('f_s_host'), hmsg, t('lbl_host'));
+    vf($('f_s_user'), val('s_user')===''?t('v_required'):(!isUser(val('s_user'))?t('v_user'):''), t('lbl_user'));
+    vf($('f_s_key'), val('s_key')===''?t('v_required'):'', t('lbl_key'));
+  } else {
+    validateMulti(ingV);
+    vf($('f_core'), val('coreDisk')===''?t('v_required'):(!isPosInt(val('coreDisk'))?t('v_int'):''), t('lbl_core'));
+    vf($('f_metrics'), val('metricsDisk')===''?t('v_required'):(!isPosInt(val('metricsDisk'))?t('v_int'):''), t('lbl_metrics'));
+  }
+
+  vf($('f_pgu'), val('pgUser')===''?t('v_required'):'', t('lbl_pguser'));
+  vf($('f_pgp'), $('pgPass').value===''?t('v_required'):'', t('lbl_pgpass'));
+  if(!$('pgMirror').checked){ const h=val('pgHost'); vf($('f_pgh'), h===''?t('v_required'):(!(isIPv4(h)||isFQDN(h))?t('v_ipfqdn'):''), t('lbl_pghost')); }
+  else setErr('f_pgh','');
+  vf($('f_pgport'), val('pgPort')===''?t('v_required'):(!isPort(val('pgPort'))?t('v_port'):''), t('lbl_pgport'));
+
+  const ingBase = val('ingress')===''?t('v_required'):(!isIPv4(val('ingress'))?t('v_ipv4'):'');
+  if(ingBase){ vf($('f_ingress'), ingBase, t('lbl_ingress')); }
+  else {
+    const conflicts=[];
+    st.nodes.forEach(n=>{ if(isIPv4(n.host) && n.host===ingV) conflicts.push(t('v_ing_node').replace('{n}', n.desc||'?')); });
+    if(st.kuma!=='none'){
+      const hs = st.kuma==='aio' ? [st.aio] : [st.utils, ...st.collectors, ...st.correlators, ...st.storages];
+      hs.forEach(h=>{ if(h.ip && isIPv4(h.ip) && h.ip===ingV) conflicts.push(t('v_ing_kuma').replace('{n}', h.fqdn||'?')); });
+    }
+    if(conflicts.length){ setErr('f_ingress', conflicts[0]); conflicts.forEach(m=> ERRORS.push({ where:t('lbl_ingress'), msg:m })); }
+    else setErr('f_ingress','');
+  }
+
+  vf($('f_admin'), $('adminPass').value===''?t('v_required'):(!pwdOk($('adminPass').value)?t('v_pwd'):''), t('lbl_admin'));
+  vf($('f_domain'), val('smpDomain')===''?t('v_required'):'', t('lbl_domain'));
+  vf($('f_license'), val('license')===''?t('v_required'):(!isPath(val('license'))?t('v_path'):''), t('lbl_license'));
+  if(S.kuma!=='none') vf($('f_inventory'), val('inventory')===''?t('v_required'):(!isPath(val('inventory'))?t('v_path'):''), t('lbl_inventory'));
+  else setErr('f_inventory','');
+  vf($('f_gu'), val('grafUser')===''?t('v_required'):(!grafUserOk(val('grafUser'))?t('v_gu'):''), t('lbl_gu'));
+  vf($('f_gp'), $('grafPass').value===''?t('v_required'):(!pwdOk($('grafPass').value)?t('v_pwd'):''), t('lbl_gp'));
+
+  if(S.kuma==='aio'){
+    vf($('f_aio_fqdn'), val('aioFqdn')===''?t('v_required'):(!isFQDN(val('aioFqdn'))?t('v_fqdn'):''), t('lbl_fqdn'));
+    let ib = (val('aioIp')!=='' && !isIPv4(val('aioIp')))?t('v_ipv4'):'';
+    if(ib) vf($('f_aio_ip'), ib, t('lbl_ip'));
+    else if(val('aioIp')!=='' && isIPv4(val('aioIp')) && ingV && val('aioIp')===ingV) applyErr($('f_aio_ip'), t('v_ingress'));
+    else setErr('f_aio_ip','');
+  }
+  if(S.kuma==='dist'){
+    vf($('f_u_fqdn'), val('utilsFqdn')===''?t('v_required'):(!isFQDN(val('utilsFqdn'))?t('v_fqdn'):''), t('lbl_fqdn')+' · kuma_utils');
+    let ib = (val('utilsIp')!=='' && !isIPv4(val('utilsIp')))?t('v_ipv4'):'';
+    if(ib) vf($('f_u_ip'), ib, t('lbl_ip_kuma')+' · kuma_utils');
+    else if(val('utilsIp')!=='' && isIPv4(val('utilsIp')) && ingV && val('utilsIp')===ingV) applyErr($('f_u_ip'), t('v_ingress'));
+    else setErr('f_u_ip','');
+    validateKumaList('collector', S.collectors, ingV);
+    validateKumaList('correlator', S.correlators, ingV);
+    validateKumaList('storage', S.storages, ingV);
+  }
+}
+function renderChipPop(){
+  const pop=$('chipPop'); if(!pop) return;
+  if(!ERRORS.length){ pop.innerHTML=''; return; }
+  pop.innerHTML = '<div class="ttl">'+esc(t('errpop_title'))+'</div><ul>'+
+    ERRORS.map(e=>'<li><span class="w">'+esc(e.where)+'</span><span class="m">'+esc(e.msg)+'</span></li>').join('')+'</ul>';
+}
+
+function renderRules(elId, v){
+  const el = $(elId); if(!el) return;
+  el.innerHTML = pwdRules(v).map(r => '<li class="'+(r.ok?'ok':(v?'no':''))+'">'+r.label+'</li>').join('');
+}
+
+/* ---- dynamic lists ---- */
+function fieldHtml(id,labelKey,tipKey,value,req,ph){
+  return '<div class="field"><label><span data-i18n="'+labelKey+'"></span><i-tip data-tipk="'+tipKey+'"></i-tip>'+(req?'<span class="req">*</span>':'')+
+    '</label><input id="'+id+'" value="'+(value||'').replace(/"/g,'&quot;')+'"'+(ph?' placeholder="'+ph+'"':'')+'><div class="err"></div></div>';
+}
+function nodeRow(n, idx){
+  const isW = n.type === 'worker';
+  const primaries = S.multi.filter(x=>x.type!=='worker').length;
+  const workers = S.multi.filter(x=>x.type==='worker').length;
+  const canDel = isW ? workers>1 : primaries>1;
+  const wrap = document.createElement('div'); wrap.className='row';
+  wrap.innerHTML =
+    '<div class="rh"><span class="role '+(isW?'w':'')+'">'+(isW?'worker':'primary')+'</span>'+
+    '<button class="del" title="'+t('del_node')+'" '+(canDel?'':'disabled')+'>✕</button></div>'+
+    '<div class="two">'+
+      fieldHtml('m_desc_'+idx,'lbl_desc','tip_desc',n.desc,true,'')+
+      fieldHtml('m_host_'+idx,'lbl_host','tip_host_multi',n.host,true,'10.0.0.'+(100+idx))+
+    '</div>'+
+    '<div class="two">'+
+      fieldHtml('m_user_'+idx,'lbl_user','tip_user',n.user,true,'')+
+      fieldHtml('m_key_'+idx,'lbl_key','tip_key',n.key,true,'')+
+    '</div>';
+  wrap.querySelector('#m_desc_'+idx).oninput = e => { n.desc=e.target.value.trim(); update(); };
+  wrap.querySelector('#m_host_'+idx).oninput = e => { n.host=e.target.value.trim(); update(); };
+  wrap.querySelector('#m_user_'+idx).oninput = e => { n.user=e.target.value.trim(); update(); };
+  wrap.querySelector('#m_key_'+idx).oninput  = e => { n.key=e.target.value.trim(); n.keyDirty=true; update(); };
+  wrap.querySelector('.del').onclick = () => { if(canDel){ S.multi.splice(idx,1); renderMulti(); update(); } };
+  return wrap;
+}
+function renderMulti(){
+  const box=$('multiList'); box.innerHTML='';
+  S.multi.forEach((n,i)=> box.appendChild(nodeRow(n,i)));
+  initTips(box); applyLang();
+}
+function kumaRow(kind, h, idx, arr){
+  const wrap=document.createElement('div'); wrap.className='row';
+  const canDel = arr.length>1;
+  wrap.innerHTML =
+    '<div class="rh"><span class="role w">'+t('role_'+kind)+' '+(idx+1)+'</span>'+
+    '<button class="del" '+(canDel?'':'disabled')+' title="'+t('del_host')+'">✕</button></div>'+
+    '<div class="two">'+
+      fieldHtml(kind+'_fqdn_'+idx,'lbl_fqdn','tip_fqdn_kuma',h.fqdn,true,'kuma-'+kind+'-'+(idx+1)+'.example.com')+
+      fieldHtml(kind+'_ip_'+idx,'lbl_ip_kuma','tip_ip_kuma',h.ip,false,'0.0.0.0')+
+    '</div>';
+  wrap.querySelector('#'+kind+'_fqdn_'+idx).oninput = e => { h.fqdn=e.target.value.trim(); update(); };
+  wrap.querySelector('#'+kind+'_ip_'+idx).oninput  = e => { h.ip=e.target.value.trim(); update(); };
+  wrap.querySelector('.del').onclick = () => { if(canDel){ arr.splice(idx,1); renderKuma(); update(); } };
+  return wrap;
+}
+function renderKuma(){
+  const map = { collector:['collectorList',S.collectors], correlator:['correlatorList',S.correlators], storage:['storageList',S.storages] };
+  Object.keys(map).forEach(kind=>{
+    const [boxId,arr]=map[kind]; const box=$(boxId); box.innerHTML='';
+    arr.forEach((h,i)=> box.appendChild(kumaRow(kind,h,i,arr)));
+    initTips(box);
+  });
+  applyLang();
+}
+function initTips(scope){
+  (scope||document).querySelectorAll('i-tip').forEach(el=>{
+    const span=document.createElement('span'); span.className='info'; span.textContent='i';
+    span.tabIndex=0; span.setAttribute('data-tipk', el.getAttribute('data-tipk')||'');
+    span.setAttribute('data-tip', t(span.getAttribute('data-tipk')));
+    el.replaceWith(span);
+  });
+}
+
+/* ---- apply current language across the DOM ---- */
+function applyLang(){
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{ el.innerHTML = t(el.dataset.i18nHtml); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{ el.title = t(el.dataset.i18nTitle); });
+  document.querySelectorAll('.info[data-tipk]').forEach(el=>{ el.setAttribute('data-tip', t(el.dataset.tipk)); });
+  $('lang').textContent = LANG==='ru' ? 'EN' : 'RU';
+}
+
+/* ============================ main update ============================ */
+let lastParam='', lastInv='', dnsRecs=[];
+function renderDns(){
+  const st=readState(); dnsRecs=dnsRecords(st); const has=dnsRecs.length>0;
+  $('dnsEmpty').style.display=has?'none':'block';
+  $('dnsPreview').style.display=has?'block':'none';
+  $('dnsDownload').disabled=!has;
+  if(has) $('dnsPreview').innerHTML=hlPreview(dnsRecs);
+}
+function openDns(){ renderDns(); $('dnsModal').classList.add('show'); }
+function nidx(n){ const m=n%100,d=n%10; if(m>=11&&m<=14)return 5; if(d===1)return 1; if(d>=2&&d<=4)return 2; return 5; }
+function errWord(n){ return t('err'+nidx(n)); }
+function empWord(n){ return t('emp'+nidx(n)); }
+
+function update(){
+  syncPaths();
+  const primaryHost = S.mode==='single' ? val('s_host') : ((S.multi.find(n=>n.type!=='worker')||S.multi[0]||{}).host||'');
+  if($('pgMirror').checked){ $('pgHost').value = primaryHost; $('pgHost').disabled = true; } else $('pgHost').disabled = false;
+
+  const st = readState();
+  const P = buildParam(st);
+  const I = st.kuma==='none' ? {text:'',errors:0} : buildInventory(st);
+  lastParam = P.text; lastInv = I.text;
+
+  validateForm(st);
+  renderRules('adminRules', $('adminPass').value);
+  renderRules('grafRules', $('grafPass').value);
+
+  const dsnU = st.pgUser ? encUserinfo(st.pgUser) : '&lt;user&gt;';
+  const dsnP = st.pgPass ? encUserinfo(st.pgPass) : '&lt;password&gt;';
+  const dsnH = st.pgHost || '&lt;host&gt;';
+  const dsnPort = st.pgPort || '&lt;port&gt;';
+  const phw = s => /&lt;/.test(s) ? '<span class="ph">'+s+'</span>' : s;
+  $('dsnPreview').innerHTML = 'postgres://'+phw(dsnU)+':'+phw(dsnP)+'@'+phw(dsnH)+':'+phw(dsnPort);
+
+  const showInv = st.kuma!=='none';
+  const text = (S.tab==='inv' && showInv) ? I.text : P.text;
+  $('yamlOut').innerHTML = hl(text);
+
+  $('formSummary').textContent = 'SMP · '+(S.mode==='single'?'single-node':'multi-node')+(showInv?('  ·  KUMA · '+(st.kuma==='aio'?'all-in-one':'distributed')):'');
+  const totalErr = ERRORS.length;
+  const chip=$('formChip');
+  chip.className='chip '+(totalErr?'err':'ok');
+  chip.textContent = totalErr ? (totalErr+' '+errWord(totalErr)) : t('ready');
+  $('chipWrap').classList.toggle('has', totalErr>0);
+  renderChipPop();
+  if(!totalErr) $('chipPop').classList.remove('show');
+
+  $('tabInv').disabled = !showInv;
+  if(!showInv && S.tab==='inv') S.tab='param';
+  document.querySelectorAll('#outTabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===S.tab));
+  $('dlName').textContent = t('dl_as')+' → '+(S.tab==='inv'?'inventory.yml':'param.yaml');
+  $('btnDlBoth').style.display = showInv? 'inline-flex':'none';
+  const curErr = (S.tab==='inv'?I.errors:P.errors);
+  $('outMsg').textContent = curErr ? (t('msg_empty_pre')+' '+curErr+' '+empWord(curErr)) : t('msg_ready');
+  if($('dnsModal').classList.contains('show')) renderDns();
+}
+
+/* ============================ events ============================ */
+$('smpSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  S.mode=b.dataset.smp;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+  $('nodesSingle').style.display=S.mode==='single'?'block':'none';
+  $('nodesMulti').style.display=S.mode==='multi'?'block':'none';
+  $('diskSection').style.display=S.mode==='multi'?'block':'none';
+  update();});
+
+$('kumaSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  S.kuma=b.dataset.kuma;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+  const none=S.kuma==='none';
+  $('cardKuma').classList.toggle('dis',none);
+  none? $('cardKuma').classList.add('closed') : $('cardKuma').classList.remove('closed');
+  $('kumaAio').style.display=S.kuma==='aio'?'block':'none';
+  $('kumaDist').style.display=S.kuma==='dist'?'block':'none';
+  $('invReq').style.display=none?'none':'inline';
+  update();});
+
+$('autodeploySeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  S.autodeploy=b.dataset.ad;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+  update();});
+
+$('outTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;S.tab=b.dataset.tab;update();});
+
+document.querySelectorAll('[data-toggle]').forEach(h=>h.addEventListener('click',()=>{
+  const c=$(h.dataset.toggle); if(c.classList.contains('dis'))return; c.classList.toggle('closed'); }));
+
+document.querySelectorAll('[data-add]').forEach(btn=>btn.addEventListener('click',()=>{
+  const tp=btn.dataset.add;
+  const n=S.multi.filter(x=>x.type===(tp==='primary'?'primary':'worker')).length+1;
+  S.multi.push({type:tp,desc:(tp==='primary'?'cdt-primary':'cdt-w')+n,host:'',user:'user',key:'/home/user/.ssh/id_rsa'});
+  renderMulti(); update(); }));
+
+document.querySelectorAll('[data-addk]').forEach(btn=>btn.addEventListener('click',()=>{
+  const k=btn.dataset.addk;
+  if(k==='collector') S.collectors.push({fqdn:'',ip:''});
+  if(k==='correlator') S.correlators.push({fqdn:'',ip:''});
+  if(k==='storage') S.storages.push({fqdn:'',ip:''});
+  renderKuma(); update(); }));
+
+['s_desc','s_host','s_user','pgUser','pgPass','pgHost','pgPort','ingress','adminPass',
+ 'coreDisk','metricsDisk','smpDomain','grafUser','grafPass',
+ 'aioFqdn','aioIp','utilsFqdn','utilsIp'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',update); });
+$('pgMirror').addEventListener('change',update);
+$('s_key').addEventListener('input',()=>{ keyDirty=true; update(); });
+$('license').addEventListener('input',()=>{ licenseDirty=true; update(); });
+$('inventory').addEventListener('input',()=>{ if(!$('inventory').disabled){ inventoryDirty=true; invUserPath=$('inventory').value.trim(); } update(); });
+$('formbody').addEventListener('focusout',e=>{ const f=e.target.closest('.field'); if(f){ f.dataset.touched='1'; update(); }});
+
+/* copy / download */
+function toast(m){ const t2=$('toast'); t2.textContent=m; t2.classList.add('show'); setTimeout(()=>t2.classList.remove('show'),1600); }
+function download(name, text){
+  const blob=new Blob([text],{type:'text/yaml;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+$('btnCopy').onclick=async()=>{ const tx=S.tab==='inv'?lastInv:lastParam;
+  try{ await navigator.clipboard.writeText(tx); toast(t('toast_copied')); }
+  catch{ const ta=document.createElement('textarea'); ta.value=tx; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast(t('toast_copied2')); } };
+$('btnDl').onclick=()=>{ if(S.tab==='inv') download('inventory.yml',lastInv); else download('param.yaml',lastParam); };
+$('btnDlBoth').onclick=()=>{ download('param.yaml',lastParam); setTimeout(()=>download('inventory.yml',lastInv),350); };
+$('dlSource').onclick=()=>{ download('osmp-kuma-yaml-builder.html', PRISTINE_SOURCE); toast(t('toast_src')); };
+$('formChip').onclick=()=>{ if(ERRORS.length) $('chipPop').classList.toggle('show'); };
+document.addEventListener('click',e=>{ if(!$('chipWrap').contains(e.target)) $('chipPop').classList.remove('show'); });
+$('btnDns').onclick=openDns;
+$('dnsClose').onclick=$('dnsCloseBtn').onclick=()=>$('dnsModal').classList.remove('show');
+$('dnsModal').addEventListener('click',e=>{ if(e.target===$('dnsModal')) $('dnsModal').classList.remove('show'); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('dnsModal').classList.remove('show'); $('chipPop').classList.remove('show'); } });
+$('dnsDownload').onclick=()=>{ if(dnsRecs.length){ download('osmp-dns-bind.conf', buildBind(dnsRecs)); toast(t('toast_dns')); } };
+
+/* language */
+$('lang').onclick=()=>{ LANG = LANG==='ru' ? 'en' : 'ru';
+  try{ localStorage.setItem('tbx-lang',LANG); }catch{}
+  applyLang(); renderMulti(); renderKuma(); update(); };
+
+/* theme */
+const tbtn=$('theme');
+try{ const saved=localStorage.getItem('tbx-theme'); if(saved){ document.documentElement.setAttribute('data-theme',saved); tbtn.textContent=saved==='dark'?'☀':'☾'; } }catch{}
+tbtn.onclick=()=>{ const d=document.documentElement.getAttribute('data-theme')==='dark';
+  const nx=d?'light':'dark'; document.documentElement.setAttribute('data-theme',nx); tbtn.textContent=nx==='dark'?'☀':'☾';
+  try{ localStorage.setItem('tbx-theme',nx); }catch{} };
+
+/* boot */
+try{ const sl=localStorage.getItem('tbx-lang'); if(sl==='en'||sl==='ru') LANG=sl; }catch{}
+initTips(document);
+renderMulti();
+renderKuma();
+applyLang();
+update();
+</script>
+</body>
+</html>
